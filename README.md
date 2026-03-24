@@ -36,7 +36,32 @@ VaultTester is an AI-powered QA assistant that takes informal, raw bug complaint
 6. The Next.js backend securely calls the **Auth0 Management API** to retrieve the user's stored GitHub token.
 7. The Next.js backend uses that token to post the issue to the target GitHub repository.
 
-## 💻 Local Installation
+### Architecture Flowchart
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant App as VaultTester (Next.js)
+    participant Auth0 as Auth0 (Token Vault)
+    participant AI as Gemini 3 Flash
+    participant GitHub as GitHub API
+
+    User->>App: 1. Click Login
+    App->>Auth0: 2. Authenticate (Social Login)
+    Auth0-->>App: 3. Return Session (Token stays in Vault)
+    
+    User->>App: 4. Submit raw bug complaint
+    App->>AI: 5. Send text for QA formatting
+    AI-->>App: 6. Return professional Markdown
+    
+    User->>App: 7. Click "Publish to GitHub"
+    App->>Auth0: 8. Call Management API (M2M)
+    Auth0-->>App: 9. Extract & Return GitHub Token
+    App->>GitHub: 10. Post Issue using extracted Token
+    GitHub-->>App: 11. Success! Return Issue URL
+    App-->>User: 12. Display Success & Link
+
+## Local Installation
 
 To run this project locally, follow these steps:
 
