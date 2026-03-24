@@ -28,15 +28,29 @@ VaultTester is an AI-powered QA assistant that takes informal, raw bug complaint
 
 ## ⚙️ How It Works (Security Architecture)
 
-1. User logs in via Auth0 using their GitHub account.
-2. Auth0 securely stores the GitHub `access_token` in its Token Vault.
-3. User types a raw bug complaint and clicks "Format with AI".
-4. Gemini 3 Flash processes the text and returns a professional Markdown QA report.
-5. User clicks "Publish to GitHub".
-6. The Next.js backend securely calls the **Auth0 Management API** to retrieve the user's stored GitHub token.
-7. The Next.js backend uses that token to post the issue to the target GitHub repository.
+VaultTester ensures zero hardcoded tokens by utilizing Auth0 Token Vault. Below is the complete workflow, from the user's perspective down to the server-to-server security mechanics.
 
-### Architecture Flowchart
+### 1. User Journey (Flowchart)
+```mermaid
+graph TD
+    A([User Opens App]) --> B(Click Log In)
+    B --> C{Auth0 Authentication}
+    C -- Login via GitHub --> D[Auth0 Stores Token in Vault]
+    D --> E(User Types Raw Bug)
+    E --> F[Click 'Format with AI']
+    F --> G[Gemini 3 Flash Processes Text]
+    G --> H(Markdown Report Generated)
+    H --> I[User Clicks 'Publish to GitHub']
+    I --> J[Next.js Calls Auth0 M2M API]
+    J --> K[Retrieves GitHub Token from Vault]
+    K --> L[Next.js Posts Issue to GitHub]
+    L --> M([Success! Display Issue Link])
+    
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style J fill:#bbf,stroke:#333,stroke-width:2px
+    style K fill:#bbf,stroke:#333,stroke-width:2px
+
+### 2. Security & API Communication (Sequence Diagram)
 
 ```mermaid
 sequenceDiagram
@@ -101,8 +115,10 @@ npm run dev
 ```
 Open http://localhost:3000 with your browser to see the result.
 
-> **Author**
+**Author**
+
 Armand Al-Farizy
+
 GitHub: @ArcVielLouvent
 ---
 This project was submitted for the Okta/Auth0 Hackathon.
