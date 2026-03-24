@@ -49,6 +49,7 @@ graph TD
     style C fill:#f9f,stroke:#333,stroke-width:2px
     style J fill:#bbf,stroke:#333,stroke-width:2px
     style K fill:#bbf,stroke:#333,stroke-width:2px
+```
 
 ### 2. Security & API Communication (Sequence Diagram)
 
