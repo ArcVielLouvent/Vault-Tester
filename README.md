@@ -60,6 +60,7 @@ sequenceDiagram
     App->>GitHub: 10. Post Issue using extracted Token
     GitHub-->>App: 11. Success! Return Issue URL
     App-->>User: 12. Display Success & Link
+```
 
 ## Local Installation
 
