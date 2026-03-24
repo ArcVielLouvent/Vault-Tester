@@ -31,57 +31,36 @@ VaultTester is an AI-powered QA assistant that takes informal, raw bug complaint
 VaultTester ensures zero hardcoded tokens by utilizing Auth0 Token Vault. Below is the complete workflow, from the user's perspective down to the server-to-server security mechanics.
 
 ### 1. User Journey & Logic (Flowchart)
+
 ```mermaid
 graph TD;
-    %% Styling agar teks hitam dan jelas terbaca di Dark Mode
-    classDef startend fill:#bbf7d0,stroke:#15803d,stroke-width:2px,color:#000
-    classDef decision fill:#f9a8d4,stroke:#be185d,stroke-width:2px,color:#000
-    classDef process fill:#bfdbfe,stroke:#1d4ed8,stroke-width:2px,color:#000
-    classDef error fill:#fca5a5,stroke:#b91c1c,stroke-width:2px,color:#000
-
-    Start([Start]) --> IsLogged{User Logged In?}
-    
-    %% Alur jika belum login
-    IsLogged -- No --> Login[Click Log In]
-    Login --> Auth0{Auth0 Authentication}
-    Auth0 -- Success --> StoreToken[Auth0 Stores Token in Vault]
-    Auth0 -- Fails --> ErrorAuth[Show Auth Error]
-    ErrorAuth --> Login
-    StoreToken --> InputBug
-    
-    %% Alur jika sudah login
-    IsLogged -- Yes --> InputBug[/User Types Raw Bug/]
-    InputBug --> ClickAI[Click 'Format with AI']
-    ClickAI --> Gemini[Gemini 3 Flash Processes Text]
-    
-    Gemini --> Valid{Is Response Valid?}
-    Valid -- No --> ErrorAI[Show AI Error] --> InputBug
-    Valid -- Yes --> ShowMD[/Show Markdown Report/]
-    
-    ShowMD --> ClickPub[Click 'Publish to GitHub']
-    ClickPub --> CallM2M[Next.js Calls Auth0 M2M API]
-    
-    CallM2M --> HasToken{Token Found in Vault?}
-    HasToken -- No --> ErrorToken[Unauthorized Error] --> Login
-    HasToken -- Yes --> GetToken[Extract GitHub Token]
-    
-    GetToken --> PostGH[Post Issue to GitHub API]
-    PostGH --> SuccessGH{Publish Success?}
-    
-    SuccessGH -- No --> ErrorGH[Show Publish Error] --> ClickPub
-    SuccessGH -- Yes --> End([End / Display Issue Link])
-
-    %% Menerapkan style ke node
-    class Start,End startend;
-    class IsLogged,Auth0,Valid,HasToken,SuccessGH decision;
-    class StoreToken,Gemini,CallM2M,GetToken,PostGH process;
-    class ErrorAuth,ErrorAI,ErrorToken,ErrorGH error;
+    A([Start])-->B{Logged In?};
+    B-- No -->C[Click Log In];
+    C-->D{Auth0 Auth};
+    D-- Success -->E[Auth0 Stores Token];
+    D-- Fails -->C;
+    E-->F[Type Raw Bug];
+    B-- Yes -->F;
+    F-->G[Click Format with AI];
+    G-->H[Gemini Processes Text];
+    H-->I{Valid?};
+    I-- No -->F;
+    I-- Yes -->J[Show Markdown Report];
+    J-->K[Click Publish];
+    K-->L[Call Auth0 M2M API];
+    L-->M{Token in Vault?};
+    M-- No -->C;
+    M-- Yes -->N[Extract Token];
+    N-->O[Post Issue to GitHub];
+    O-->P{Success?};
+    P-- No -->K;
+    P-- Yes -->Q([End / Show Link]);
 ```
 
 ### 2. Security & API Communication (Sequence Diagram)
 
 ```mermaid
-sequenceDiagram;
+sequenceDiagram
     actor User
     participant App as VaultTester (Next.js)
     participant Auth0 as Auth0 (Token Vault)
