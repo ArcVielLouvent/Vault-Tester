@@ -81,7 +81,7 @@ graph TD;
 ### 2. Security & API Communication (Sequence Diagram)
 
 ```mermaid
-sequenceDiagram
+sequenceDiagram;
     actor User
     participant App as VaultTester (Next.js)
     participant Auth0 as Auth0 (Token Vault)
