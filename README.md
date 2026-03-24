@@ -30,25 +30,52 @@ VaultTester is an AI-powered QA assistant that takes informal, raw bug complaint
 
 VaultTester ensures zero hardcoded tokens by utilizing Auth0 Token Vault. Below is the complete workflow, from the user's perspective down to the server-to-server security mechanics.
 
-### 1. User Journey (Flowchart)
+### 1. User Journey & Logic (Flowchart)
 ```mermaid
 graph TD;
-    A([User Opens App]) --> B(Click Log In)
-    B --> C{Auth0 Authentication}
-    C -- Login via GitHub --> D[Auth0 Stores Token in Vault]
-    D --> E(User Types Raw Bug)
-    E --> F[Click 'Format with AI']
-    F --> G[Gemini 3 Flash Processes Text]
-    G --> H(Markdown Report Generated)
-    H --> I[User Clicks 'Publish to GitHub']
-    I --> J[Next.js Calls Auth0 M2M API]
-    J --> K[Retrieves GitHub Token from Vault]
-    K --> L[Next.js Posts Issue to GitHub]
-    L --> M([Success! Display Issue Link])
+    %% Styling agar teks hitam dan jelas terbaca di Dark Mode
+    classDef startend fill:#bbf7d0,stroke:#15803d,stroke-width:2px,color:#000
+    classDef decision fill:#f9a8d4,stroke:#be185d,stroke-width:2px,color:#000
+    classDef process fill:#bfdbfe,stroke:#1d4ed8,stroke-width:2px,color:#000
+    classDef error fill:#fca5a5,stroke:#b91c1c,stroke-width:2px,color:#000
+
+    Start([Start]) --> IsLogged{User Logged In?}
     
-    style C fill:#f9f,stroke:#333,stroke-width:2px
-    style J fill:#bbf,stroke:#333,stroke-width:2px
-    style K fill:#bbf,stroke:#333,stroke-width:2px
+    %% Alur jika belum login
+    IsLogged -- No --> Login[Click Log In]
+    Login --> Auth0{Auth0 Authentication}
+    Auth0 -- Success --> StoreToken[Auth0 Stores Token in Vault]
+    Auth0 -- Fails --> ErrorAuth[Show Auth Error]
+    ErrorAuth --> Login
+    StoreToken --> InputBug
+    
+    %% Alur jika sudah login
+    IsLogged -- Yes --> InputBug[/User Types Raw Bug/]
+    InputBug --> ClickAI[Click 'Format with AI']
+    ClickAI --> Gemini[Gemini 3 Flash Processes Text]
+    
+    Gemini --> Valid{Is Response Valid?}
+    Valid -- No --> ErrorAI[Show AI Error] --> InputBug
+    Valid -- Yes --> ShowMD[/Show Markdown Report/]
+    
+    ShowMD --> ClickPub[Click 'Publish to GitHub']
+    ClickPub --> CallM2M[Next.js Calls Auth0 M2M API]
+    
+    CallM2M --> HasToken{Token Found in Vault?}
+    HasToken -- No --> ErrorToken[Unauthorized Error] --> Login
+    HasToken -- Yes --> GetToken[Extract GitHub Token]
+    
+    GetToken --> PostGH[Post Issue to GitHub API]
+    PostGH --> SuccessGH{Publish Success?}
+    
+    SuccessGH -- No --> ErrorGH[Show Publish Error] --> ClickPub
+    SuccessGH -- Yes --> End([End / Display Issue Link])
+
+    %% Menerapkan style ke node
+    class Start,End startend;
+    class IsLogged,Auth0,Valid,HasToken,SuccessGH decision;
+    class StoreToken,Gemini,CallM2M,GetToken,PostGH process;
+    class ErrorAuth,ErrorAI,ErrorToken,ErrorGH error;
 ```
 
 ### 2. Security & API Communication (Sequence Diagram)
