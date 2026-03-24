@@ -68,7 +68,7 @@ To run this project locally, follow these steps:
 
 ### 1. Clone the repository
 ```bash
-git clone [https://github.com/ArcVielLouvent/VaultTester-AI.git](https://github.com/ArcVielLouvent/VaultTester-AI.git)
+git clone https://github.com/ArcVielLouvent/Vault-Tester.git
 cd vault-tester
 ```
 
