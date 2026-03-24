@@ -32,7 +32,7 @@ VaultTester ensures zero hardcoded tokens by utilizing Auth0 Token Vault. Below 
 
 ### 1. User Journey (Flowchart)
 ```mermaid
-graph TD
+graph TD;
     A([User Opens App]) --> B(Click Log In)
     B --> C{Auth0 Authentication}
     C -- Login via GitHub --> D[Auth0 Stores Token in Vault]
