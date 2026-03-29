@@ -7,14 +7,20 @@ interface Auth0Identity {
   [key: string]: any;
 }
 
-export async function POST(req: Request) {
+interface GitHubRepo {
+  id: number;
+  full_name: string;
+  name: string;
+  private: boolean;
+  [key: string]: any;
+}
+
+export async function GET() {
   try {
     const session = await auth0.getSession();
     if (!session?.user) {
       return NextResponse.json({ error: 'Akses ditolak. Silakan login.' }, { status: 401 });
     }
-
-    console.log("User terotentikasi untuk Publish:", session.user.name);
 
     const auth0Domain = process.env.AUTH0_DOMAIN;
     const clientId = process.env.AUTH0_CLIENT_ID;
@@ -47,55 +53,33 @@ export async function POST(req: Request) {
     const githubToken = githubIdentity?.access_token;
 
     if (!githubToken) {
-      return NextResponse.json({ error: 'Token GitHub tidak ditemukan. Pastikan login dengan GitHub.' }, { status: 401 });
+      return NextResponse.json({ error: 'Token GitHub tidak ditemukan.' }, { status: 401 });
     }
 
-    const { 
-      issueText, 
-      targetRepo, 
-      assignees,  
-      labels,     
-      milestone   
-    } = await req.json();
-    
-    if (!issueText) {
-      return NextResponse.json({ error: 'Teks laporan kosong.' }, { status: 400 });
-    }
-    
-    if (!targetRepo) {
-      return NextResponse.json({ error: 'Repositori target belum dipilih.' }, { status: 400 });
-    }
-
-    const titleMatch = issueText.match(/\*\*Title:\*\* (.*)/);
-    const issueTitle = titleMatch ? titleMatch[1] : `AI Bug Report - ${new Date().toLocaleDateString()}`;
-
-    const res = await fetch(`https://api.github.com/repos/${targetRepo}/issues`, {
-      method: 'POST',
+    const reposResponse = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
       headers: {
         'Authorization': `Bearer ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        title: issueTitle,
-        body: issueText,
-        assignees: assignees || [], 
-        labels: labels || [],       
-        milestone: milestone || null 
-      })
     });
 
-    if (!res.ok) {
-      const errorData = await res.json();
-      console.error('Error dari GitHub API:', errorData);
-      throw new Error(errorData.message || 'Gagal memposting ke GitHub');
+    if (!reposResponse.ok) {
+      throw new Error('Gagal mengambil daftar repositori');
     }
 
-    const data = await res.json();
-    return NextResponse.json({ url: data.html_url });
+    const reposData = await reposResponse.json();
+    
+    const repos = reposData.map((repo: GitHubRepo) => ({
+      id: repo.id,
+      full_name: repo.full_name,
+      name: repo.name,
+      private: repo.private
+    }));
 
+    return NextResponse.json({ repos }, { status: 200 });
+    
   } catch (error: any) {
-    console.error('Error Sistem Utama di Rute Publish:', error);
-    return NextResponse.json({ error: error.message || 'Terjadi kesalahan sistem' }, { status: 500 });
-2}
+    console.error('Error fetching repos:', error);
+    return NextResponse.json({ error: 'Terjadi kesalahan sistem' }, { status: 500 });
+  }
 }

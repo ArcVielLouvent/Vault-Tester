@@ -1,122 +1,244 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from "react";
+
+interface Repo { id: number; full_name: string; name: string; private: boolean; }
+interface Milestone { id: number; title: string; }
 
 export default function BugReportForm() {
-  const [bugText, setBugText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [bugText, setBugText] = useState("");
+  const [generatedMarkdown, setGeneratedMarkdown] = useState("");
+  const [isFormatting, setIsFormatting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [aiResponse, setAiResponse] = useState('');
-  const [successUrl, setSuccessUrl] = useState('');
+  const [publishStatus, setPublishStatus] = useState<"idle" | "success" | "error">("idle");
+  const [issueUrl, setIssueUrl] = useState("");
 
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bugText.trim()) return;
+  const [repos, setRepos] = useState<Repo[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<string>("");
+  const [isFetchingRepos, setIsFetchingRepos] = useState<boolean>(true);
 
-    setIsLoading(true);
-    setAiResponse('');
-    setSuccessUrl('');
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+  const [availableAssignees, setAvailableAssignees] = useState<string[]>([]);
+  const [availableLabels, setAvailableLabels] = useState<string[]>([]);
+  const [availableMilestones, setAvailableMilestones] = useState<Milestone[]>([]);
+  
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [selectedMilestone, setSelectedMilestone] = useState<number | "">("");
+
+  useEffect(() => {
+    const fetchRepos = async () => {
+      try {
+        const res = await fetch('/api/github/repos');
+        const data = await res.json();
+        if (res.ok && data.repos) {
+          setRepos(data.repos);
+          if (data.repos.length > 0) setSelectedRepo(data.repos[0].full_name);
+        }
+      } catch (error) { console.error("Error repos:", error); } 
+      finally { setIsFetchingRepos(false); }
+    };
+    fetchRepos();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRepo) return;
     
-    try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bugText }),
-      });
+    const fetchRepoDetails = async () => {
+      setIsFetchingDetails(true);
+      setSelectedAssignees([]);
+      setSelectedLabels([]);
+      setSelectedMilestone("");
 
-      if (!res.ok) throw new Error('Failed to generate AI response');
-      const data = await res.json();
-      setAiResponse(data.result);
-    } catch (error) {
-      setAiResponse('Error: Failed to contact AI Agent.');
-    } finally {
-      setIsLoading(false);
+      try {
+        const res = await fetch(`/api/github/details?repo=${encodeURIComponent(selectedRepo)}`);
+        const data = await res.json();
+        if (res.ok) {
+          setAvailableAssignees(data.assignees || []);
+          setAvailableLabels(data.labels || []);
+          setAvailableMilestones(data.milestones || []);
+        }
+      } catch (error) {
+        console.error("Error detail repo:", error);
+      } finally {
+        setIsFetchingDetails(false);
+      }
+    };
+
+    fetchRepoDetails();
+  }, [selectedRepo]);
+
+  const toggleSelection = (item: string, currentList: string[], setList: Function) => {
+    if (currentList.includes(item)) {
+      setList(currentList.filter(i => i !== item));
+    } else {
+      setList([...currentList, item]);
     }
+  };
+
+  const handleFormatWithAI = async () => {
+    if (!bugText.trim()) return;
+    setIsFormatting(true); setPublishStatus("idle");
+    try {
+      const res = await fetch("/api/generate", { 
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawText: bugText }), 
+      });
+      const data = await res.json();
+      if (res.ok) setGeneratedMarkdown(data.markdown);
+      else alert(data.error || "Gagal memformat AI.");
+    } catch (error) { alert("Error sistem AI."); } 
+    finally { setIsFormatting(false); }
   };
 
   const handlePublish = async () => {
+    if (!generatedMarkdown || !selectedRepo) return;
     setIsPublishing(true);
     try {
-      const res = await fetch('/api/github', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ issueText: aiResponse }),
+      const res = await fetch('/api/github', { 
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          issueText: generatedMarkdown,
+          targetRepo: selectedRepo,
+          assignees: selectedAssignees,
+          labels: selectedLabels,
+          milestone: selectedMilestone === "" ? null : selectedMilestone
+        }),
       });
-
-      if (!res.ok) throw new Error('Failed to publish to GitHub');
       const data = await res.json();
-      setSuccessUrl(data.url);
-    } catch (error) {
-      alert("Failed to publish issue to GitHub.");
-    } finally {
-      setIsPublishing(false);
-    }
+      if (res.ok) { setPublishStatus("success"); setIssueUrl(data.url); } 
+      else { setPublishStatus("error"); alert(data.error || "Gagal mempublish."); }
+    } catch (error) { setPublishStatus("error"); } 
+    finally { setIsPublishing(false); }
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto mt-8">
-      {successUrl ? (
-        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-6 text-center">
-          <div className="text-4xl mb-4">🎉</div>
-          <h3 className="text-xl font-bold mb-2">Bug Report Published!</h3>
-          <p className="mb-4">Your AI-formatted issue has been securely posted to your repository.</p>
-          <a href={successUrl} target="_blank" rel="noopener noreferrer" className="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition-colors">
-            View on GitHub
-          </a>
-          <button onClick={() => { setSuccessUrl(''); setBugText(''); setAiResponse(''); }} className="block w-full text-green-600 font-semibold mt-4 hover:underline">
-            Report Another Bug
+    <div className="w-full max-w-5xl mx-auto text-left flex flex-col gap-6">
+      
+      {/* 1. Kotak Input Bug */}
+      {publishStatus !== "success" && (
+        <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Describe the Bug:</label>
+          <textarea
+            className="w-full h-32 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 text-gray-800 resize-none"
+            placeholder="Example: Hey, the submit button on the profile page is broken..."
+            value={bugText} onChange={(e) => setBugText(e.target.value)}
+            disabled={isFormatting || isPublishing}
+          />
+          <button
+            onClick={handleFormatWithAI} disabled={!bugText.trim() || isFormatting}
+            className="mt-4 w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-4 rounded-lg disabled:bg-gray-400 transition"
+          >
+            {isFormatting ? "AI is formatting..." : "Format with AI"}
           </button>
         </div>
-      ) : (
-        <>
-          <form onSubmit={handleGenerate} className="bg-white shadow-md rounded-lg p-6 border border-gray-100 text-left">
-            <label htmlFor="bug" className="block text-gray-700 text-sm font-bold mb-2">
-              Describe the Bug (Raw/informal text is fine):
-            </label>
-            <textarea
-              id="bug"
-              rows={5}
-              className="shadow appearance-none border border-gray-200 rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-              placeholder="Example: Hey, the submit button on the profile page is broken..."
-              value={bugText}
-              onChange={(e) => setBugText(e.target.value)}
-              disabled={isLoading || isPublishing}
-            />
-            
-            <button
-              type="submit"
-              disabled={isLoading || !bugText}
-              className={`w-full font-bold py-3 px-4 rounded-lg text-white transition-colors flex justify-center items-center ${
-                isLoading || !bugText ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800'
-              }`}
-            >
-              {isLoading ? 'AI is Formatting...' : 'Format with AI'}
-            </button>
-          </form>
-
-          {aiResponse && (
-            <div className="mt-6 bg-white shadow-md border border-gray-100 rounded-lg p-6 text-left">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex justify-between items-center">
-                Generated Report (Preview)
-                <button 
-                  onClick={handlePublish}
-                  disabled={isPublishing}
-                  className={`text-sm py-2 px-4 rounded font-bold text-white transition-colors ${
-                    isPublishing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                >
-                  {isPublishing ? 'Publishing...' : 'Publish to GitHub'}
-                </button>
-              </h3>
-              <div className="bg-gray-50 border border-gray-200 rounded p-4 max-h-96 overflow-y-auto">
-                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
-                  {aiResponse}
-                </pre>
-              </div>
-            </div>
-          )}
-        </>
       )}
+
+      {/* 2. Hasil Markdown & Panel Metadata */}
+      {generatedMarkdown && publishStatus !== "success" && (
+        <div className="flex flex-col lg:flex-row gap-6">
+          
+          {/* Kolom Kiri: Preview Markdown */}
+          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex-1">
+             <h3 className="text-lg font-bold text-gray-800 mb-4">Generated Report</h3>
+             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 overflow-auto h-96 text-sm text-gray-800 whitespace-pre-wrap font-mono">
+              {generatedMarkdown}
+            </div>
+          </div>
+
+          {/* Kolom Kanan: Pengaturan GitHub (Assignees, Labels, Repo) */}
+          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200 w-full lg:w-80 flex flex-col gap-5">
+            <h3 className="text-lg font-bold text-gray-800 border-b pb-2">GitHub Properties</h3>
+            
+            {/* Repo Selection */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Target Repository</label>
+              {isFetchingRepos ? (
+                <p className="text-sm text-gray-400">Loading repos...</p>
+              ) : (
+                <select
+                  value={selectedRepo} onChange={(e) => setSelectedRepo(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-md text-sm text-black focus:ring-blue-500" disabled={isPublishing}
+                >
+                  {repos.map((repo) => (
+                    <option key={repo.id} value={repo.full_name}>{repo.full_name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {isFetchingDetails ? (
+              <div className="text-sm text-blue-500 animate-pulse py-4 text-center border border-blue-100 rounded bg-blue-50">Syncing with GitHub...</div>
+            ) : (
+              <>
+                {/* Assignees */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Assignees</label>
+                  {availableAssignees.length === 0 ? <p className="text-xs text-gray-400 italic">No assignees available.</p> : (
+                    <div className="max-h-24 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50">
+                      {availableAssignees.map(user => (
+                        <label key={user} className="flex items-center gap-2 mb-1 cursor-pointer">
+                          <input type="checkbox" checked={selectedAssignees.includes(user)} onChange={() => toggleSelection(user, selectedAssignees, setSelectedAssignees)} className="rounded text-blue-600 focus:ring-blue-500" />
+                          <span className="text-sm text-gray-700">{user}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Labels */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Labels</label>
+                  {availableLabels.length === 0 ? <p className="text-xs text-gray-400 italic">No labels available.</p> : (
+                    <div className="max-h-32 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50">
+                      {availableLabels.map(label => (
+                        <label key={label} className="flex items-center gap-2 mb-1 cursor-pointer">
+                          <input type="checkbox" checked={selectedLabels.includes(label)} onChange={() => toggleSelection(label, selectedLabels, setSelectedLabels)} className="rounded text-blue-600 focus:ring-blue-500" />
+                          <span className="text-sm text-gray-700 truncate">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Milestone */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Milestone</label>
+                  <select
+                    value={selectedMilestone} onChange={(e) => setSelectedMilestone(e.target.value ? Number(e.target.value) : "")}
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm text-black focus:ring-blue-500"
+                  >
+                    <option value="">No milestone</option>
+                    {availableMilestones.map(m => (
+                      <option key={m.id} value={m.id}>{m.title}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            <button
+              onClick={handlePublish} disabled={isPublishing || !selectedRepo || isFetchingDetails}
+              className="mt-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg disabled:bg-blue-300 transition-colors w-full"
+            >
+              {isPublishing ? "Publishing..." : "Publish to GitHub"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Status Sukses */}
+      {publishStatus === "success" && (
+        <div className="bg-green-50 p-8 rounded-xl border border-green-200 text-center">
+          <h3 className="text-2xl font-bold text-green-800 mb-2">Bug Report Published!</h3>
+          <p className="text-green-700 mb-6">Your AI-formatted issue with tags and assignees has been securely posted.</p>
+          <div className="flex justify-center gap-4">
+            <a href={issueUrl} target="_blank" rel="noopener noreferrer" className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition">View on GitHub</a>
+            <button onClick={() => { setBugText(""); setGeneratedMarkdown(""); setPublishStatus("idle"); }} className="bg-white hover:bg-gray-50 text-green-700 font-bold py-2 px-6 rounded-lg border border-green-300 transition">Report Another Bug</button>
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 }
